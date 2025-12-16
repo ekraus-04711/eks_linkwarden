@@ -20,6 +20,7 @@ are marked as aiTagged, generates up to five concise tags with an LLM, and updat
 each link via the public API.
 """
 
+import ast
 import json
 import os
 import sys
@@ -27,7 +28,7 @@ from typing import Iterable, List, Optional
 
 import requests
 
-BASE_URL = os.getenv("LINKWARDEN_BASE_URL", "http://localhost:3000").rstrip("/")
+RAW_BASE_URL = os.getenv("LINKWARDEN_BASE_URL", "http://localhost:3000")
 TOKEN = os.getenv("LINKWARDEN_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -37,6 +38,38 @@ def require(value: Optional[str], name: str) -> str:
     if not value:
         sys.exit(f"Missing required environment variable: {name}")
     return value
+
+
+def normalize_base_url(raw: str) -> str:
+    """Return a sanitized base URL string.
+
+    Some Windows setups can accidentally pass a tuple repr like
+    "('LINKWARDEN_BASE_URL', 'https://example.com')"; we attempt to
+    recover the actual URL from such strings and ensure there is a
+    scheme present so requests can build a valid URL.
+    """
+
+    # Trim whitespace and surrounding quotes
+    raw = (raw or "").strip().strip('"\'')
+
+    # Attempt to parse tuple-like reprs
+    if raw.startswith("(") and raw.endswith(")"):
+        try:
+            parsed = ast.literal_eval(raw)
+            if isinstance(parsed, tuple) and len(parsed) == 2:
+                raw = str(parsed[1])
+        except (SyntaxError, ValueError):
+            pass
+
+    raw = raw.rstrip("/")
+    if not raw.startswith("http://") and not raw.startswith("https://"):
+        sys.exit(
+            "LINKWARDEN_BASE_URL must include a scheme, e.g. https://linkwarden.example.com"
+        )
+    return raw
+
+
+BASE_URL = normalize_base_url(RAW_BASE_URL)
 
 
 def fetch_links(session: requests.Session) -> Iterable[dict]:
