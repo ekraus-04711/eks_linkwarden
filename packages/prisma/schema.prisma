@@ -53,6 +53,7 @@ model User {
   aiTaggingMethod         AiTaggingMethod       @default(DISABLED)
   aiPredefinedTags        String[]              @default([])
   aiTagExistingLinks      Boolean               @default(false)
+  aiCollectionsEnabled    Boolean               @default(false)
   theme                   Theme                 @default(dark)
   readableFontFamily      String?               @default("sans-serif")
   readableFontSize        String?               @default("20px")
@@ -187,6 +188,7 @@ model Link {
   monolith      String?
   clientSide    Boolean     @default(false)
   aiTagged      Boolean     @default(false)
+  aiCollectionAssigned Boolean @default(false)
   indexVersion  Int?
   lastPreserved DateTime?
   importDate    DateTime?
