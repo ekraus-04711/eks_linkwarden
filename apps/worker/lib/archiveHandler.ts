@@ -15,14 +15,16 @@ import { LinkWithCollectionOwnerAndTags } from "@linkwarden/types";
 import { isArchivalTag } from "@linkwarden/lib";
 import { ArchivalSettings } from "@linkwarden/types";
 import { getDefaultContextOptions } from "./browser";
+import autoAssignCollection from "./autoAssignCollection";
 
 const BROWSER_TIMEOUT = Number(process.env.BROWSER_TIMEOUT) || 5;
 
 export default async function archiveHandler(
-  link: LinkWithCollectionOwnerAndTags,
+  initialLink: LinkWithCollectionOwnerAndTags,
   browser: Browser
 ) {
-  const user = link.collection?.owner;
+  let link = initialLink;
+  let user = link.collection?.owner;
 
   if (
     process.env.DISABLE_PRESERVATION === "true" ||
@@ -70,9 +72,6 @@ export default async function archiveHandler(
   const contextOptions = getDefaultContextOptions();
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
-
-  createFolder({ filePath: `archives/preview/${link.collectionId}` });
-  createFolder({ filePath: `archives/${link.collectionId}` });
 
   const archivalTags = link.tags.filter(isArchivalTag);
   const archivalSettings: ArchivalSettings =
@@ -148,6 +147,40 @@ export default async function archiveHandler(
           });
 
           const content = await page.content();
+
+          if (
+            user?.aiCollectionsEnabled &&
+            !link.aiCollectionAssigned &&
+            (process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT_URL ||
+              process.env.OPENAI_API_KEY ||
+              process.env.AZURE_API_KEY ||
+              process.env.ANTHROPIC_API_KEY ||
+              process.env.OPENROUTER_API_KEY ||
+              process.env.PERPLEXITY_API_KEY)
+          ) {
+            const newCollectionId = await autoAssignCollection(user, link.id, {
+              metaDescription,
+              pageContent: content.slice(0, 2000),
+            });
+
+            if (newCollectionId && newCollectionId !== link.collectionId) {
+              const refreshedLink = await prisma.link.findUnique({
+                where: { id: link.id },
+                include: {
+                  tags: true,
+                  collection: { include: { owner: true } },
+                },
+              });
+
+              if (refreshedLink) {
+                link = refreshedLink;
+                user = link.collection.owner;
+              }
+            }
+          }
+
+          createFolder({ filePath: `archives/preview/${link.collectionId}` });
+          createFolder({ filePath: `archives/${link.collectionId}` });
 
           // Preview
           if (!link.preview) await handleArchivePreview(link, page);

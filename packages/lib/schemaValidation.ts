@@ -85,6 +85,7 @@ export const UpdateUserSchema = () => {
     aiTaggingMethod: z.nativeEnum(AiTaggingMethod).optional(),
     aiPredefinedTags: z.array(z.string().max(20).trim()).max(20).optional(),
     aiTagExistingLinks: z.boolean().optional(),
+    aiCollectionsEnabled: z.boolean().optional(),
     locale: z.string().max(20).optional(),
     isPrivate: z.boolean().optional(),
     preventDuplicateLinks: z.boolean().optional(),
